@@ -10,7 +10,10 @@ use common::consts::*;
 use cortex_m::singleton;
 use defmt::*;
 use defmt_rtt as _;
-use fixed::types::{I1F15, U8F8};
+use fixed::{
+    traits::Fixed,
+    types::{I1F15, U8F8},
+};
 use fugit::HertzU32;
 use panic_probe as _;
 use rp2040_hal::{
@@ -19,7 +22,7 @@ use rp2040_hal::{
     gpio::{self},
     multicore::{Multicore, Stack},
     pac,
-    pio::PIOExt,
+    pio::{PIOExt, PinDir},
     pll::{common_configs::PLL_USB_48MHZ, setup_pll_blocking},
     sio::Sio,
     watchdog::Watchdog,
@@ -33,8 +36,10 @@ use rytmos_synth::effect::{
 
 static mut CORE1_STACK: Stack<4096> = Stack::new();
 
+pub const BUFFER_SIZE: usize = 16;
+
 #[allow(dead_code)]
-fn setup_dac_square_wave(sys_freq: HertzU32) -> ! {
+fn setup_dac_triangle_wave(sys_freq: HertzU32) -> ! {
     let mut pac = unsafe { pac::Peripherals::steal() };
     let sio = Sio::new(pac.SIO);
     let pins = gpio::Pins::new(
@@ -44,7 +49,7 @@ fn setup_dac_square_wave(sys_freq: HertzU32) -> ! {
         &mut pac.RESETS,
     );
 
-    let (mut pio0, sm0, _, _, _) = pac.PIO0.split(&mut pac.RESETS);
+    let (mut pio0, sm0, _, _, sm3) = pac.PIO0.split(&mut pac.RESETS);
 
     let dac_output = rp2040_i2s::I2SOutput::new(
         &mut pio0,
@@ -56,7 +61,7 @@ fn setup_dac_square_wave(sys_freq: HertzU32) -> ! {
     )
     .unwrap();
 
-    let (_, _, dac_fifo_tx) = dac_output.split();
+    let (sm0, _, dac_fifo_tx) = dac_output.split();
 
     let dma_channels = pac.DMA.split(&mut pac.RESETS);
 
@@ -70,26 +75,47 @@ fn setup_dac_square_wave(sys_freq: HertzU32) -> ! {
     let i2s_tx_transfer = i2s_dma_config.start();
     let mut i2s_tx_transfer = i2s_tx_transfer.read_next(i2s_tx_buf2);
 
-    let mut state = true;
-    let mut sample_count = 0;
-    let mut sample = 0;
+    // -- move to lib --
+
+    let sck_pin: gpio::Pin<gpio::bank0::Gpio9, gpio::FunctionPio0, gpio::PullDown> =
+        pins.gpio9.reconfigure();
+    {
+        #[rustfmt::skip]
+        let sck_pio_program = pio_proc::pio_asm!(
+            ".wrap_target",
+            "    set pins, 0b1",
+            "    set pins, 0b0",
+            ".wrap",
+        );
+
+        let installed = pio0.install(&sck_pio_program.program).unwrap();
+
+        let sck_clock_divisor: u16 = 6; // 256 times the lr clock => 48k => 12.288MHz => lib found clock / 2
+
+        let (mut sck_sm, _, _) = rp2040_hal::pio::PIOBuilder::from_installed_program(installed)
+            .set_pins(sck_pin.id().num, 1)
+            .clock_divisor_fixed_point(sck_clock_divisor, 64)
+            .build(sm3);
+
+        sck_sm.set_pindirs([(sck_pin.id().num, PinDir::Output)]);
+        sck_sm.start();
+        info!("sck state machine started");
+    }
+
+    // -- ^^^^^^^^^^^ --
+
+    sm0.start();
+
     const WAVELENGTH: i32 = 500;
+
+    let mut sample: u32 = 0;
+
     loop {
         let (next_tx_buf, next_tx_transfer) = i2s_tx_transfer.wait();
 
-        for (i, e) in next_tx_buf.iter_mut().enumerate() {
-            if i % 2 == 0 {
-                sample_count += 1;
-                if sample_count > WAVELENGTH {
-                    sample_count = 0;
-                    state = !state
-                }
-                sample = if state { 1 } else { -1 };
-                *e = (sample as u32) >> 4;
-            } else {
-                *e = (sample as u32) >> 4;
-            }
-            *e <<= 16;
+        for e in next_tx_buf.iter_mut() {
+            (sample, _) = sample.overflowing_add(7000000);
+            *e = sample;
         }
 
         i2s_tx_transfer = next_tx_transfer.read_next(next_tx_buf);
@@ -107,7 +133,36 @@ fn setup_adc_and_dac(sys_freq: HertzU32) -> ! {
         &mut pac.RESETS,
     );
 
-    let (mut pio0, sm0, sm1, _, _) = pac.PIO0.split(&mut pac.RESETS);
+    let (mut pio0, sm0, sm1, _, sm3) = pac.PIO0.split(&mut pac.RESETS);
+
+    // -- move to lib --
+
+    let sck_pin: gpio::Pin<gpio::bank0::Gpio9, gpio::FunctionPio0, gpio::PullDown> =
+        pins.gpio9.reconfigure();
+    {
+        #[rustfmt::skip]
+        let sck_pio_program = pio_proc::pio_asm!(
+            ".wrap_target",
+            "    set pins, 0b1",
+            "    set pins, 0b0",
+            ".wrap",
+        );
+
+        let installed = pio0.install(&sck_pio_program.program).unwrap();
+
+        let sck_clock_divisor: u16 = 6; // 256 times the lr clock => 48k => 12.288MHz => lib found clock / 2
+
+        let (mut sck_sm, _, _) = rp2040_hal::pio::PIOBuilder::from_installed_program(installed)
+            .set_pins(sck_pin.id().num, 1)
+            .clock_divisor_fixed_point(sck_clock_divisor, 64)
+            .build(sm3);
+
+        sck_sm.set_pindirs([(sck_pin.id().num, PinDir::Output)]);
+        sck_sm.start();
+        info!("sck state machine started");
+    }
+
+    // -- ^^^^^^^^^^^ --
 
     let dac_output = rp2040_i2s::I2SOutput::new(
         &mut pio0,
@@ -129,8 +184,11 @@ fn setup_adc_and_dac(sys_freq: HertzU32) -> ! {
     )
     .unwrap();
 
-    let (_, _, dac_fifo_tx) = dac_output.split();
-    let (_, adc_fifo_rx, _) = adc_input.split();
+    let (dac_sm, _, dac_fifo_tx) = dac_output.split();
+    let (adc_sm, adc_fifo_rx, _) = adc_input.split();
+
+    dac_sm.start();
+    adc_sm.start();
 
     let dma_channels = pac.DMA.split(&mut pac.RESETS);
 
@@ -157,27 +215,27 @@ fn setup_adc_and_dac(sys_freq: HertzU32) -> ! {
     let mut effect = Amplify::make(
         0,
         AmplifySettings {
-            amplification: U8F8::from_num(2),
+            // amplification: U8F8::from_num(U8F8::MAX / 8),
+            amplification: U8F8::from_num(8),
         },
     );
-    let mut sample = 0;
+    let mut sample: I1F15;
 
     loop {
         let (next_rx_buf, next_rx_transfer) = i2s_rx_transfer.wait();
 
         // apply effects
         for (i, rx_sample) in next_rx_buf.iter_mut().enumerate() {
-            if i % 2 == 0 {
-                sample = effect
-                    .next(I1F15::from_bits((*rx_sample >> 16) as i16))
-                    .to_bits();
+            // Somehow the first bit is not set, probably som glitch in the setup
+            // This shift however makes sure negative numbers are negative
+            *rx_sample <<= 1;
+            let fixed_sample = I1F15::from_bits((*rx_sample >> 16) as i16);
 
-                *rx_sample = (sample as u32) >> 4;
-            } else {
-                *rx_sample = (sample as u32) >> 4;
-            }
+            // Here custom effect code can be inserted
+            sample = effect.next(fixed_sample);
 
-            *rx_sample <<= 16;
+            // and here it's converted back to something working
+            *rx_sample = (sample.to_bits() as u32) << 16
         }
 
         let (next_tx_buf, next_tx_transfer) = i2s_tx_transfer.wait();
@@ -203,7 +261,36 @@ fn setup_dual_adc_and_dac(sys_freq: HertzU32) -> ! {
         &mut pac.RESETS,
     );
 
-    let (mut pio0, sm0, sm1, sm2, _) = pac.PIO0.split(&mut pac.RESETS);
+    let (mut pio0, sm0, sm1, sm2, sm3) = pac.PIO0.split(&mut pac.RESETS);
+
+    // -- move to lib --
+
+    let sck_pin: gpio::Pin<gpio::bank0::Gpio9, gpio::FunctionPio0, gpio::PullDown> =
+        pins.gpio9.reconfigure();
+    {
+        #[rustfmt::skip]
+        let sck_pio_program = pio_proc::pio_asm!(
+            ".wrap_target",
+            "    set pins, 0b1",
+            "    set pins, 0b0",
+            ".wrap",
+        );
+
+        let installed = pio0.install(&sck_pio_program.program).unwrap();
+
+        let sck_clock_divisor: u16 = 6; // 256 times the lr clock => 48k => 12.288MHz => lib found clock / 2
+
+        let (mut sck_sm, _, _) = rp2040_hal::pio::PIOBuilder::from_installed_program(installed)
+            .set_pins(sck_pin.id().num, 1)
+            .clock_divisor_fixed_point(sck_clock_divisor, 64)
+            .build(sm3);
+
+        sck_sm.set_pindirs([(sck_pin.id().num, PinDir::Output)]);
+        sck_sm.start();
+        info!("sck state machine started");
+    }
+
+    // -- ^^^^^^^^^^^ --
 
     let dac_output = rp2040_i2s::I2SOutput::new(
         &mut pio0,
@@ -235,9 +322,13 @@ fn setup_dual_adc_and_dac(sys_freq: HertzU32) -> ! {
     )
     .unwrap();
 
-    let (_, _, dac_fifo_tx) = dac_output.split();
-    let (_, adc_aux_fifo_rx, _) = adc_aux_input.split();
-    let (_, adc_jack_fifo_rx, _) = adc_jack_input.split();
+    let (dac_sm, _, dac_fifo_tx) = dac_output.split();
+    let (adc_aux_sm, adc_aux_fifo_rx, _) = adc_aux_input.split();
+    let (adc_jack_sm, adc_jack_fifo_rx, _) = adc_jack_input.split();
+
+    dac_sm.start();
+    adc_aux_sm.start();
+    adc_jack_sm.start();
 
     let dma_channels = pac.DMA.split(&mut pac.RESETS);
 
@@ -276,14 +367,26 @@ fn setup_dual_adc_and_dac(sys_freq: HertzU32) -> ! {
         let (next_jack_rx_buf, next_jack_rx_transfer) = jack_rx_transfer.wait();
 
         // mix both inputs 50/50
-        for (aux_sample, jack_sample) in next_aux_rx_buf.iter_mut().zip(next_jack_rx_buf.iter()) {
-            *aux_sample = (*aux_sample >> 1) + (jack_sample >> 1);
+        for (aux_sample, jack_sample) in next_aux_rx_buf.iter_mut().zip(next_jack_rx_buf.iter_mut())
+        {
+            // prep samples
+            *aux_sample <<= 1;
+            *jack_sample <<= 1;
+
+            let signed_aux_sample = *aux_sample as i32;
+            let signed_jack_sample = *jack_sample as i32;
+
+            // mix / apply effects
+            let new_sample = signed_aux_sample.saturating_add(signed_jack_sample);
+
+            // store
+            *aux_sample = new_sample as u32;
         }
 
         let (next_tx_buf, next_tx_transfer) = i2s_tx_transfer.wait();
 
         // write computed samples into tx
-        for (&rx_sample, tx_sample) in next_jack_rx_buf.iter().zip(next_tx_buf.iter_mut()) {
+        for (&rx_sample, tx_sample) in next_aux_rx_buf.iter().zip(next_tx_buf.iter_mut()) {
             *tx_sample = rx_sample
         }
 
@@ -312,7 +415,7 @@ fn main() -> ! {
         let pll_sys = setup_pll_blocking(
             pac.PLL_SYS,
             xosc.operating_frequency(),
-            common::plls::SYS_PLL_CONFIG_307P2MHZ,
+            common::plls::SYS_PLL_CONFIG_153P6MHZ,
             &mut clocks,
             &mut pac.RESETS,
         )
@@ -382,9 +485,9 @@ fn main() -> ! {
 
     #[allow(static_mut_refs)]
     let _ = core1.spawn(unsafe { CORE1_STACK.take().unwrap() }, move || {
-        setup_dac_square_wave(clocks.system_clock.freq())
+        // setup_dac_triangle_wave(clocks.system_clock.freq())
         // setup_adc_and_dac(clocks.system_clock.freq())
-        // setup_dual_adc_and_dac(clocks.system_clock.freq())
+        setup_dual_adc_and_dac(clocks.system_clock.freq())
     });
 
     info!("Set up at sys_freq = {}Hz", sys_freq);
