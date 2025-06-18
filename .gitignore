@@ -1,1 +1,8 @@
 target
+
+*.zip
+pcbs/**/*backups*
+pcbs/**/*_autosave*
+pcbs/**/~*.lck
+pcbs/**/*.bak
+pcbs/**/gerbers

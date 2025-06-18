@@ -1,0 +1,6 @@
+(sym_lib_table
+  (version 7)
+  (lib (name "rytmos")(type "KiCad")(uri "/home/pieter/projects/rust/mep/pcbs/libs/rytmos.kicad_sym")(options "")(descr ""))
+  (lib (name "MCU_RaspberryPi_and_Boards")(type "KiCad")(uri "/home/pieter/projects/rust/mep/pcbs/libs/pico/MCU_RaspberryPi_and_Boards.kicad_sym")(options "")(descr ""))
+  (lib (name "DCJ200-10-A-XX-K_REVA")(type "KiCad")(uri "/home/pieter/projects/rust/mep/pcbs/libs/DCJ200-10-A-XX-K_REVA/DCJ200-10-A-XX-K_REVA.kicad_sym")(options "")(descr ""))
+)

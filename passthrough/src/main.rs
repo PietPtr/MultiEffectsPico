@@ -10,10 +10,7 @@ use common::consts::*;
 use cortex_m::singleton;
 use defmt::*;
 use defmt_rtt as _;
-use fixed::{
-    traits::Fixed,
-    types::{I1F15, U8F8},
-};
+use fixed::types::{I1F15, U8F8};
 use fugit::HertzU32;
 use panic_probe as _;
 use rp2040_hal::{
@@ -225,7 +222,7 @@ fn setup_adc_and_dac(sys_freq: HertzU32) -> ! {
         let (next_rx_buf, next_rx_transfer) = i2s_rx_transfer.wait();
 
         // apply effects
-        for (i, rx_sample) in next_rx_buf.iter_mut().enumerate() {
+        for (_i, rx_sample) in next_rx_buf.iter_mut().enumerate() {
             // Somehow the first bit is not set, probably som glitch in the setup
             // This shift however makes sure negative numbers are negative
             *rx_sample <<= 1;
