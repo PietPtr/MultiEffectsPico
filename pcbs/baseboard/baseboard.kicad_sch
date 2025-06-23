@@ -4604,7 +4604,7 @@
 			(embedded_fonts no)
 		)
 	)
-	(text "TODO:\nx XSMT on the DAC is probably useful, connect it somewhere\nx capacitor on ADC inputs (check datasheet)\ndo we need to DC bias to 2.5V?\nx add the (options for) the 9v regulator\nx test AGND connection on DAC"
+	(text "TODO:\nx XSMT on the DAC is probably useful, connect it somewhere\nx capacitor on ADC inputs (check datasheet)\ndo we need to DC bias to 2.5V?\nx add the (options for) the 9v regulator\nx test AGND connection on DAC\nn passthrough switch\nx swd pins: position on the side, 90 degree angled headers"
 		(exclude_from_sim no)
 		(at 19.05 81.788 0)
 		(effects
@@ -8775,7 +8775,7 @@
 				(justify left)
 			)
 		)
-		(property "Footprint" "rytmos:Jack_6.3mm"
+		(property "Footprint" "rytmos:SlimJack6.3"
 			(at 43.18 26.67 90)
 			(effects
 				(font
@@ -8990,7 +8990,7 @@
 				(justify left)
 			)
 		)
-		(property "Footprint" "rytmos:Jack_6.3mm"
+		(property "Footprint" "rytmos:SlimJack6.3"
 			(at 93.98 26.67 90)
 			(effects
 				(font
@@ -9070,7 +9070,7 @@
 				)
 			)
 		)
-		(property "Footprint" "rytmos:Jack_6.3mm"
+		(property "Footprint" "rytmos:SlimJack6.3"
 			(at 205.74 52.07 90)
 			(effects
 				(font

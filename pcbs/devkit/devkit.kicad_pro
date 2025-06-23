@@ -466,7 +466,7 @@
     "pinned_symbol_libs": []
   },
   "meta": {
-    "filename": "baseboard.kicad_pro",
+    "filename": "devkit.kicad_pro",
     "version": 3
   },
   "net_settings": {
@@ -504,7 +504,7 @@
       "netlist": "",
       "plot": "gerbers",
       "pos_files": "",
-      "specctra_dsn": "../../../../../Downloads/baseboard.dsn",
+      "specctra_dsn": "../../../../../Downloads/devkit.dsn",
       "step": "",
       "svg": "",
       "vrml": ""
