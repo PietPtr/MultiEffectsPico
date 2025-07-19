@@ -1,8 +1,8 @@
 [package]
-name = "rp2040-devkit"
+name = "rp2040-devkit-reference"
 version = "0.1.0"
 edition = "2021"
-description = "Tests passing through an incoming I2S ADC signal to an I2S DAC"
+description = "Tests passing through an incoming I2S ADC signal to an I2S DAC on the baseboard v0.1, and all the I/O on the devkit hat v0.1"
 
 [dependencies]
 fixed = "1.27.0"
@@ -30,3 +30,8 @@ common = { git = "https://github.com/PietPtr/Rytmos.git", features = [
     "rp-pico",
 ] }
 rp2040-i2s = "0.1.0"
+mcp23017 = "1.1.0"
+shared-bus = "0.3.1"
+sh1106 = "0.5.0"
+embedded-graphics = "0.8.1"
+rotary-encoder-embedded = "0.5.0"

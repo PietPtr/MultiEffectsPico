@@ -4987,7 +4987,7 @@
 			(embedded_fonts no)
 		)
 	)
-	(text "TODO:\nx XSMT on the DAC is probably useful, connect it somewhere\nx capacitor on ADC inputs (check datasheet)\nx do we need to DC bias to 2.5V?\nx add the (options for) the 9v regulator\nx test AGND connection on DAC\nn passthrough switch\nx swd pins: position on the side, 90 degree angled headers\nx fix ADC footprint, analog inputs are incorrect\nx double check DC barrel jack footprint"
+	(text "TODO:\nx XSMT on the DAC is probably useful, connect it somewhere\nx capacitor on ADC inputs (check datasheet)\nx do we need to DC bias to 2.5V?\nx add the (options for) the 9v regulator\nx test AGND connection on DAC\nn passthrough switch\nx swd pins: position on the side, 90 degree angled headers\nx fix ADC footprint, analog inputs are incorrect\nx double check DC barrel jack footprint\nfootprint of 6.3mm connector is incorrect (mirrored?)\nDC barrel jack is correct, so simplify it"
 		(exclude_from_sim no)
 		(at 19.05 81.788 0)
 		(effects
