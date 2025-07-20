@@ -1,5 +1,5 @@
 [workspace]
-members = ["fingybass", "passthrough", "devkit/*"]
+members = ["fingybass", "passthrough", "devkit/*", "frequency-monitor"]
 resolver = "2"
 
 

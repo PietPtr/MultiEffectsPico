@@ -8,8 +8,7 @@ Board to attach to the baseboard via the GPIO breakout on the side. Contains foo
 2) potentiometers
 3) encoders
 4) RGB LEDs above each encoder / pot
-4) some pushbuttons (kailh silent)
-5) some toggle switches (the big ones)
+5) some pushbuttons (kailh silent)
 6) (probably) a GPIO expander: Pcf8575
 
 # Interface
