@@ -1,5 +1,5 @@
 [workspace]
-members = ["fingybass", "passthrough", "devkit/*", "frequency-monitor"]
+members = ["fingybass", "passthrough", "devkit/*", "frequency-monitor", "rp2040_cycle_counter"]
 resolver = "2"
 
 

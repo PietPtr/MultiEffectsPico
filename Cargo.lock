@@ -437,8 +437,32 @@ dependencies = [
 name = "frequency-monitor"
 version = "0.1.0"
 dependencies = [
+ "common",
+ "cortex-m",
+ "cortex-m-rt",
+ "defmt 0.3.100",
+ "defmt-rtt",
  "embedded-graphics",
+ "embedded-hal 0.2.7",
+ "fixed",
+ "fugit",
+ "heapless 0.7.17",
+ "libm",
+ "mcp23017",
  "microfft",
+ "micromath",
+ "panic-probe",
+ "pio",
+ "pio-proc",
+ "rotary-encoder-embedded",
+ "rp2040-boot2",
+ "rp2040-hal",
+ "rp2040-i2s",
+ "rp2040_cycle_counter",
+ "rytmos-engrave",
+ "rytmos-synth",
+ "sh1106",
+ "shared-bus",
 ]
 
 [[package]]
@@ -1148,6 +1172,14 @@ dependencies = [
  "cortex-m-rt",
  "critical-section",
  "vcell",
+]
+
+[[package]]
+name = "rp2040_cycle_counter"
+version = "0.1.0"
+dependencies = [
+ "cortex-m",
+ "rp2040-hal",
 ]
 
 [[package]]
