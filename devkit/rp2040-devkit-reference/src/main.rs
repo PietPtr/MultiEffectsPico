@@ -7,72 +7,55 @@
 pub static BOOT2_FIRMWARE: [u8; 256] = rp2040_boot2::BOOT_LOADER_W25Q080;
 
 use common::consts::*;
-use core::cell::RefCell;
 use core::fmt::Write as _;
-use core::sync::atomic::AtomicU32;
-use core::sync::atomic::Ordering;
-use core::u32;
-use cortex_m::interrupt::Mutex;
-use cortex_m::singleton;
+use core::{
+    cell::RefCell,
+    sync::atomic::{AtomicU32, Ordering},
+    u32,
+};
+use cortex_m::{interrupt::Mutex, singleton};
 use defmt::info;
 use defmt_rtt as _;
-use embedded_graphics::mono_font::ascii::FONT_6X10;
-use embedded_graphics::mono_font::MonoTextStyleBuilder;
-use embedded_graphics::pixelcolor::BinaryColor;
-use embedded_graphics::prelude::*;
-use embedded_graphics::text::Baseline;
-use embedded_graphics::text::Text;
-use embedded_hal::adc::OneShot;
-use embedded_hal::blocking::i2c::Write;
-use embedded_hal::digital::v2::InputPin;
+use embedded_graphics::{
+    mono_font::{ascii::FONT_6X10, MonoTextStyleBuilder},
+    pixelcolor::BinaryColor,
+    prelude::*,
+    text::{Baseline, Text},
+};
+use embedded_hal::{adc::OneShot, blocking::i2c::Write, digital::v2::InputPin};
 use fixed::types::{I1F15, U8F8};
 use frequency_monitor::FrequencyMonitor;
-use fugit::Duration;
-use fugit::HertzU32;
-use fugit::RateExtU32;
-use heapless::Arc;
-use heapless::String;
-use heapless::Vec;
+use fugit::{Duration, HertzU32, RateExtU32};
+use heapless::{String, Vec};
 use mcp23017::MCP23017;
 use panic_probe as _;
-use rotary_encoder_embedded::Direction;
-use rotary_encoder_embedded::RotaryEncoder;
-use rp2040_hal::dma;
-use rp2040_hal::dma::double_buffer::Transfer;
-use rp2040_hal::dma::single_buffer;
-use rp2040_hal::gpio::FunctionSioInput;
-use rp2040_hal::gpio::PullUp;
-use rp2040_hal::pac::NVIC;
-use rp2040_hal::timer::Alarm;
-use rp2040_hal::timer::Alarm0;
-use rp2040_hal::Timer;
+use rotary_encoder_embedded::{Direction, RotaryEncoder};
 use rp2040_hal::{
     adc::AdcPin,
     clocks::{Clock, ClockSource, ClocksManager, InitError},
     dma::{double_buffer, DMAExt},
-    gpio::{self, DynFunction, DynPinId, Pin, PullDown},
+    gpio::{self, DynFunction, DynPinId, FunctionSioInput, Pin, PullDown, PullUp},
     multicore::{Multicore, Stack},
-    pac::interrupt,
-    pac::{self},
+    pac::{self, interrupt, NVIC},
     pio::{PIOExt, PinDir},
     pll::{common_configs::PLL_USB_48MHZ, setup_pll_blocking},
     sio::Sio,
+    timer::{Alarm, Alarm0},
     watchdog::Watchdog,
     xosc::setup_xosc_blocking,
-    Adc, I2C,
+    Adc, Timer, I2C,
 };
+use sh1106::mode::GraphicsMode;
 
 use rytmos_synth::effect::{
     amplify::{Amplify, AmplifySettings},
     Effect,
 };
-use sh1106::mode::GraphicsMode;
 
 static mut CORE1_STACK: Stack<4096> = Stack::new();
 
-static mut FFT_MON_TIME_DOMAIN_DATA: [u32; FrequencyMonitor::FFT_SIZE] =
-    [0; FrequencyMonitor::FFT_SIZE];
-
+// TODO: moving 48k samples from one core to the other over shared memory should not be a hardware constraint.
+// ring buffer maybe? ringbuffer crate.
 static FFT_MON_TIME_DOMAIN_DATA_MUTEX: critical_section::Mutex<
     RefCell<[u32; FrequencyMonitor::FFT_SIZE]>,
 > = critical_section::Mutex::new(RefCell::new([0; FrequencyMonitor::FFT_SIZE]));
@@ -231,7 +214,10 @@ fn setup_dual_adc_and_dac(sys_freq: HertzU32) -> ! {
                     critical_section::with(|cs| {
                         let Ok(mut t) = FFT_MON_TIME_DOMAIN_DATA_MUTEX.borrow(cs).try_borrow_mut()
                         else {
-                            return; // couldn't borrow it now, wait until next iteration
+                            // couldn't borrow it now, so it's being read by the consuming thread,
+                            // throw current data away and start over
+                            fft_time_domain_store.clear();
+                            return;
                         };
 
                         t.copy_from_slice(&fft_time_domain_store);

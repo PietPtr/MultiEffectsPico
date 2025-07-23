@@ -1,5 +1,12 @@
 [workspace]
-members = ["fingybass", "passthrough", "devkit/*", "frequency-monitor", "rp2040_cycle_counter"]
+members = [
+    "fingybass",
+    "passthrough",
+    "devkit/*",
+    "frequency-monitor",
+    "rp2040_cycle_counter",
+    "audioscope",
+]
 resolver = "2"
 
 

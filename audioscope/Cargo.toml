@@ -1,0 +1,39 @@
+[package]
+name = "audioscope"
+version = "0.1.0"
+edition = "2021"
+description = "Oscilloscope implementation for an 128x64 OLED display + some buttons / encoders"
+
+[dependencies]
+embedded-graphics = "0.8.1"
+microfft = "0.6.0"
+fixed = "1.27.0"
+cortex-m = "0.7"
+cortex-m-rt = "0.7"
+embedded-hal = { version = "0.2.7", features = ["unproven"] }
+defmt = "0.3.5"
+defmt-rtt = "0.4"
+panic-probe = { version = "0.3", features = ["print-defmt"] }
+rp2040-hal = { version = "0.11.0", default-features = false, features = [
+    "rt",
+    "critical-section-impl",
+    "rom-func-cache",
+] }
+fugit = "0.3.7"
+pio = "0.2.1"
+pio-proc = "0.2.2"
+heapless = "0.7.16"
+rp2040-boot2 = "0.2.1"
+libm = "0.2.8"
+micromath = "2.1.0"
+rytmos-synth = { git = "https://github.com/PietPtr/Rytmos.git" }
+rytmos-engrave = { git = "https://github.com/PietPtr/Rytmos.git" }
+common = { git = "https://github.com/PietPtr/Rytmos.git", features = [
+    "rp-pico",
+] }
+rp2040-i2s = "0.1.0"
+mcp23017 = "1.1.0"
+shared-bus = "0.3.1"
+sh1106 = "0.5.0"
+rotary-encoder-embedded = "0.5.0"
+rp2040_cycle_counter = { version = "0.1.0", path = "../rp2040_cycle_counter" }

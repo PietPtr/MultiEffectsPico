@@ -10,7 +10,7 @@ use embedded_graphics::{
 };
 use micromath::F32Ext;
 
-/// Given a time domain signal, computes the FFT (with a library), and displays it on an embedded graphics target
+/// Given a time domain signal, computes the FFT (with a library), and displays it on a small OLED display
 pub struct FrequencyMonitor {
     frequency_domain: [f32; Self::FFT_SIZE],
     spectrum: [u32; Self::FFT_SIZE / 2],
@@ -34,8 +34,6 @@ impl FrequencyMonitor {
         }
     }
 
-    const BASE_SCALE: u32 = 64;
-
     pub fn stats(sample_rate: usize) -> FftStats {
         FftStats {
             sample_rate,
@@ -51,6 +49,7 @@ impl FrequencyMonitor {
         }
     }
 
+    // TODO: a u32 as time domain signal, shouldn't there be negative values..? check incoming ADC data
     pub fn recompute(&mut self, time_domain_signal: [u32; Self::FFT_SIZE]) {
         // TODO: cheat at the u32 -> f32 conversion and do it with bit magic?
         // https://www.h-schmidt.net/FloatConverter/IEEE754.html
