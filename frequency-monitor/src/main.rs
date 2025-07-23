@@ -10,24 +10,17 @@ use common::consts::*;
 use core::u32;
 use defmt::info;
 use defmt_rtt as _;
-use embedded_hal::adc::OneShot;
 use frequency_monitor::FrequencyMonitor;
 use fugit::HertzU32;
 use panic_probe as _;
 use rp2040_cycle_counter::Rp2040CycleCounter;
 use rp2040_hal::{
-    adc::AdcPin,
     clocks::{Clock, ClockSource, ClocksManager, InitError},
-    gpio::{self, DynFunction, Pin, PullDown},
     pac::{self},
     pll::{common_configs::PLL_USB_48MHZ, setup_pll_blocking},
-    sio::Sio,
     watchdog::Watchdog,
     xosc::setup_xosc_blocking,
-    Adc,
 };
-
-pub const BUFFER_SIZE: usize = 16;
 
 #[rp2040_hal::entry]
 fn main() -> ! {
@@ -35,7 +28,6 @@ fn main() -> ! {
     let core = pac::CorePeripherals::take().unwrap();
 
     let mut watchdog = Watchdog::new(pac.WATCHDOG);
-    let sio = Sio::new(pac.SIO);
 
     watchdog.enable_tick_generation((EXTERNAL_XTAL_FREQ_HZ.raw() / 1_000_000) as u8);
 
@@ -112,25 +104,12 @@ fn main() -> ! {
             .unwrap();
     }
 
-    let pins = gpio::Pins::new(
-        pac.IO_BANK0,
-        pac.PADS_BANK0,
-        sio.gpio_bank0,
-        &mut pac.RESETS,
-    );
-
-    let mut adc = Adc::new(pac.ADC, &mut pac.RESETS);
-    let mut adc_pin: AdcPin<Pin<_, DynFunction, PullDown>> =
-        AdcPin::new(pins.gpio26.reconfigure()).unwrap();
-
-    let mut signal = [0; FrequencyMonitor::FFT_SIZE];
-    for s in signal.iter_mut() {
-        // Fill with something that won't be optimized out
-        let read: u16 = adc.read(&mut adc_pin).unwrap();
-        *s = read as u32
-    }
+    let signal = [0; FrequencyMonitor::FFT_SIZE];
 
     let mut freqmon = FrequencyMonitor::new(1);
+    let stats = FrequencyMonitor::stats(48_000);
+    stats.print();
+
     let mut benchmark = Rp2040CycleCounter::new(core.SYST);
 
     benchmark.setup();
@@ -153,7 +132,8 @@ fn main() -> ! {
         runs_count += 1;
 
         info!(
-            "runs: {}, avg cycles: {}",
+            "cycles: {}, runs: {}, avg cycles: {}",
+            cycles,
             runs_count,
             cycles_sum as f64 / runs_count as f64
         );

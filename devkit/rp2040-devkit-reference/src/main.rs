@@ -26,14 +26,20 @@ use embedded_hal::adc::OneShot;
 use embedded_hal::blocking::i2c::Write;
 use embedded_hal::digital::v2::InputPin;
 use fixed::types::{I1F15, U8F8};
+use frequency_monitor::FrequencyMonitor;
 use fugit::Duration;
 use fugit::HertzU32;
 use fugit::RateExtU32;
+use heapless::Arc;
 use heapless::String;
+use heapless::Vec;
 use mcp23017::MCP23017;
 use panic_probe as _;
 use rotary_encoder_embedded::Direction;
 use rotary_encoder_embedded::RotaryEncoder;
+use rp2040_hal::dma;
+use rp2040_hal::dma::double_buffer::Transfer;
+use rp2040_hal::dma::single_buffer;
 use rp2040_hal::gpio::FunctionSioInput;
 use rp2040_hal::gpio::PullUp;
 use rp2040_hal::pac::NVIC;
@@ -63,6 +69,13 @@ use rytmos_synth::effect::{
 use sh1106::mode::GraphicsMode;
 
 static mut CORE1_STACK: Stack<4096> = Stack::new();
+
+static mut FFT_MON_TIME_DOMAIN_DATA: [u32; FrequencyMonitor::FFT_SIZE] =
+    [0; FrequencyMonitor::FFT_SIZE];
+
+static FFT_MON_TIME_DOMAIN_DATA_MUTEX: critical_section::Mutex<
+    RefCell<[u32; FrequencyMonitor::FFT_SIZE]>,
+> = critical_section::Mutex::new(RefCell::new([0; FrequencyMonitor::FFT_SIZE]));
 
 pub const BUFFER_SIZE: usize = 16;
 
@@ -178,6 +191,7 @@ fn setup_dual_adc_and_dac(sys_freq: HertzU32) -> ! {
     let jack_rx_transfer = i2s_dma_config.start();
     let mut jack_rx_transfer = jack_rx_transfer.write_next(i2s_rx_buf2);
 
+    // Effects
     let mut effect = Amplify::make(
         0,
         AmplifySettings {
@@ -186,6 +200,8 @@ fn setup_dual_adc_and_dac(sys_freq: HertzU32) -> ! {
         },
     );
     let mut sample: I1F15;
+
+    let mut fft_time_domain_store: Vec<u32, { FrequencyMonitor::FFT_SIZE }> = Vec::new();
 
     loop {
         let (next_aux_rx_buf, next_aux_rx_transfer) = aux_rx_transfer.wait();
@@ -206,6 +222,23 @@ fn setup_dual_adc_and_dac(sys_freq: HertzU32) -> ! {
 
             // store
             *aux_sample = new_sample as u32;
+
+            match fft_time_domain_store.push(*aux_sample) {
+                Ok(()) => (),
+                Err(_) => {
+                    // local buffer full, try to obtain mutex, write it, and clear local buffer
+
+                    critical_section::with(|cs| {
+                        let Ok(mut t) = FFT_MON_TIME_DOMAIN_DATA_MUTEX.borrow(cs).try_borrow_mut()
+                        else {
+                            return; // couldn't borrow it now, wait until next iteration
+                        };
+
+                        t.copy_from_slice(&fft_time_domain_store);
+                        fft_time_domain_store.clear();
+                    });
+                }
+            };
         }
 
         let (next_tx_buf, next_tx_transfer) = i2s_tx_transfer.wait();
@@ -309,6 +342,9 @@ fn main() -> ! {
         &mut pac.RESETS,
     );
 
+    // Setup double buffer for FFT visualizer
+    let dma_channels = pac.DMA.split(&mut pac.RESETS);
+
     // Setup the other core
     let sys_freq = clocks.system_clock.freq();
     let mut mc = Multicore::new(&mut pac.PSM, &mut pac.PPB, &mut sio.fifo);
@@ -318,15 +354,10 @@ fn main() -> ! {
     #[allow(static_mut_refs)]
     let _ = core1.spawn(unsafe { CORE1_STACK.take().unwrap() }, move || {
         setup_dual_adc_and_dac(sys_freq)
-        // setup_adc_only(clocks.system_clock.freq())
     });
 
     info!("Set up at sys_freq = {}Hz", sys_freq.to_Hz());
     info!("Start I/O thread.");
-
-    // set up the encoders on a timer, maybe using some atomic int?
-    // set up the potentiometers (look at drum machine)
-    // set up IO expander
 
     let encoder1 = RotaryEncoder::new(
         pins.gpio17.into_pull_up_input().into_dyn_pin(),
@@ -403,10 +434,6 @@ fn main() -> ! {
         pins.gpio3.reconfigure().into_dyn_pin(),
     ];
 
-    // let pullup_state = io_expander
-    //     .read_register(mcp23017::Register::GPPUA)
-    //     .unwrap();
-
     let mut display: GraphicsMode<_> = sh1106::Builder::new()
         .with_rotation(sh1106::prelude::DisplayRotation::Rotate180)
         .connect_i2c(bus.acquire_i2c())
@@ -429,37 +456,30 @@ fn main() -> ! {
     const BUTTON3_PIN: u8 = 14;
     const BUTTON4_PIN: u8 = 15;
 
-    loop {
-        display.clear();
-        // let banks = io_expander.read_gpioab().unwrap();
-        // info!("banks = {:016b}", banks);
-        let mut pot_leds = 0;
+    let mut freqmon = FrequencyMonitor::new(1);
 
+    let mut selected_menu = Menu::Tests;
+    let mut pot_values = [0; 3];
+    let mut encoder_switch_states = [false; 3];
+
+    loop {
+        // Read inputs (buttons, pots, encoders)
+        if !io_expander.digital_read(BUTTON1_PIN).unwrap() {
+            selected_menu = Menu::Tests
+        }
+        if !io_expander.digital_read(BUTTON2_PIN).unwrap() {
+            selected_menu = Menu::FrequencyMonitor;
+            TRACKERS[2].store(100, Ordering::Relaxed);
+        }
+
+        let mut pot_leds = 0;
         let mut adc_text: String<72> = String::new();
 
         for (i, reader) in pot_readers.iter_mut().enumerate() {
             let read: u16 = adc.read(reader).unwrap();
-            let leds = ((read >> 10) & 0b11) as u8;
-            pot_leds |= leds << (i * 2);
-            write!(adc_text, "ADC{}: {:2} ", i, read / 64).unwrap();
-            write!(
-                adc_text,
-                "ENC{}: {}\n",
-                i,
-                TRACKERS[i].load(Ordering::Relaxed) as i32
-            )
-            .unwrap();
+            pot_values[i] = read;
         }
 
-        activity = (activity + 1) % activities.len();
-        write!(adc_text, "{}\n", activities[activity]).unwrap();
-
-        if !io_expander.digital_read(BUTTON1_PIN).unwrap() {
-            write!(adc_text, "{}", 1).unwrap();
-        }
-        if !io_expander.digital_read(BUTTON2_PIN).unwrap() {
-            write!(adc_text, "{}", 2).unwrap();
-        }
         if !io_expander.digital_read(BUTTON3_PIN).unwrap() {
             write!(adc_text, "{}", 3).unwrap();
         }
@@ -467,28 +487,75 @@ fn main() -> ! {
             write!(adc_text, "{}", 4).unwrap();
         }
 
-        Text::with_baseline(&adc_text, Point::zero(), text_style, Baseline::Top)
-            .draw(&mut display)
-            .unwrap();
-
-        io_expander
-            .write_gpio(mcp23017::Port::GPIOA, pot_leds)
-            .unwrap();
-
-        let mut enc_leds: u8 = 0;
         for (enc_id, switch) in enc_switches.iter().enumerate() {
-            if switch.is_low().unwrap() {
-                enc_leds |= 0b11 << (enc_id * 2);
-                // info!("enc switch {} triggeder", enc_id)
+            encoder_switch_states[enc_id] = switch.is_low().unwrap();
+        }
+
+        // Render things on the screen / leds
+        display.clear();
+
+        match selected_menu {
+            Menu::Tests => {
+                for (i, read) in pot_values.iter().enumerate() {
+                    let leds = ((read >> 10) & 0b11) as u8;
+                    pot_leds |= leds << (i * 2);
+                    write!(adc_text, "ADC{}: {:2} ", i, read / 64).unwrap();
+                    write!(
+                        adc_text,
+                        "ENC{}: {}\n",
+                        i,
+                        TRACKERS[i].load(Ordering::Relaxed) as i32
+                    )
+                    .unwrap();
+                }
+
+                activity = (activity + 1) % activities.len();
+                write!(adc_text, "{}\n", activities[activity]).unwrap();
+
+                Text::with_baseline(&adc_text, Point::zero(), text_style, Baseline::Top)
+                    .draw(&mut display)
+                    .unwrap();
+
+                io_expander
+                    .write_gpio(mcp23017::Port::GPIOA, pot_leds)
+                    .unwrap();
+
+                let mut enc_leds: u8 = 0;
+                for (enc_id, switch) in enc_switches.iter().enumerate() {
+                    if switch.is_low().unwrap() {
+                        enc_leds |= 0b11 << (enc_id * 2);
+                    }
+                }
+
+                io_expander
+                    .write_gpio(mcp23017::Port::GPIOB, enc_leds)
+                    .unwrap();
+            }
+            Menu::FrequencyMonitor => {
+                let mut data = [0; FrequencyMonitor::FFT_SIZE];
+
+                freqmon.inverse_scale =
+                    TRACKERS[2].load(Ordering::Relaxed).clamp(1, 1000) * 2000000;
+
+                critical_section::with(|cs| {
+                    let t = FFT_MON_TIME_DOMAIN_DATA_MUTEX.borrow(cs).try_borrow();
+                    if let Ok(t) = t {
+                        data.copy_from_slice(t.as_ref());
+                    }
+                });
+
+                freqmon.recompute(data);
+                freqmon.draw(&mut display).unwrap();
             }
         }
 
-        io_expander
-            .write_gpio(mcp23017::Port::GPIOB, enc_leds)
-            .unwrap();
-
         display.flush().unwrap();
     }
+}
+
+enum Menu {
+    Tests,
+    FrequencyMonitor,
 }
 
 type Encoder = RotaryEncoder<

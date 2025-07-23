@@ -35,3 +35,5 @@ shared-bus = "0.3.1"
 sh1106 = "0.5.0"
 embedded-graphics = "0.8.1"
 rotary-encoder-embedded = "0.5.0"
+frequency-monitor = { version = "0.1.0", path = "../../frequency-monitor" }
+critical-section = "1.2.0"
