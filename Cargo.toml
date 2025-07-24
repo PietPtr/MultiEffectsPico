@@ -6,6 +6,7 @@ members = [
     "frequency-monitor",
     "rp2040_cycle_counter",
     "audioscope",
+    "prototype-breath-control",
 ]
 resolver = "2"
 

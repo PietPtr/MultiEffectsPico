@@ -3657,7 +3657,7 @@
 			(embedded_fonts no)
 		)
 	)
-	(text "TODO:\nx 10K pullups on I2C bus\nx Figure out which RGB leds I have (common cathode / anode? order?)\nx take dimensions of Jacks into account, they might be too high\nx figure out ergonomic ish layout and a good place for the compnoents\nx check fit on display\nx check encoder footprints\nx check pot stock / add to cart"
+	(text "TODO:\nx 10K pullups on I2C bus\nx Figure out which RGB leds I have (common cathode / anode? order?)\nx take dimensions of Jacks into account, they might be too high\nx figure out ergonomic ish layout and a good place for the compnoents\nx check fit on display\nx check encoder footprints\nx check pot stock / add to cart\nexpose some IOs for headers / experimental add ons\nexpose I2C bus"
 		(exclude_from_sim no)
 		(at 130.302 17.272 0)
 		(effects

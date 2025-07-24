@@ -128,6 +128,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1b8e56985ec62d17e9c1001dc89c88ecd7dc08e47eba5ec7c29c7b5eeecde967"
 
 [[package]]
+name = "bmp280-rs"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7ca9c15f481347b528eb90f70fc9f90f5771fd5ca30fb56c9d0620588a6e16ab"
+dependencies = [
+ "defmt 0.3.100",
+ "embedded-hal 0.2.7",
+ "snafu",
+]
+
+[[package]]
 name = "bytemuck"
 version = "1.23.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -318,6 +329,12 @@ dependencies = [
  "redox_users",
  "winapi",
 ]
+
+[[package]]
+name = "doc-comment"
+version = "0.3.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fea41bba32d969b513997752735605054bc0dfa92b4c56bf1189f2e174be7a10"
 
 [[package]]
 name = "either"
@@ -1006,6 +1023,38 @@ dependencies = [
 ]
 
 [[package]]
+name = "prototype-breath-control"
+version = "0.1.0"
+dependencies = [
+ "bmp280-rs",
+ "common",
+ "cortex-m",
+ "cortex-m-rt",
+ "critical-section",
+ "defmt 0.3.100",
+ "defmt-rtt",
+ "embedded-graphics",
+ "embedded-hal 0.2.7",
+ "fixed",
+ "fugit",
+ "heapless 0.7.17",
+ "libm",
+ "mcp23017",
+ "micromath",
+ "panic-probe",
+ "pio",
+ "pio-proc",
+ "rotary-encoder-embedded",
+ "rp2040-boot2",
+ "rp2040-hal",
+ "rp2040-i2s",
+ "rytmos-engrave",
+ "rytmos-synth",
+ "sh1106",
+ "shared-bus",
+]
+
+[[package]]
 name = "quote"
 version = "1.0.40"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1333,6 +1382,27 @@ name = "smallvec"
 version = "1.15.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "67b1b7a3b5fe4f1376887184045fcf45c69e92af734b7aaddc05fb777b6fbd03"
+
+[[package]]
+name = "snafu"
+version = "0.6.10"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "eab12d3c261b2308b0d80c26fffb58d17eba81a4be97890101f416b478c79ca7"
+dependencies = [
+ "doc-comment",
+ "snafu-derive",
+]
+
+[[package]]
+name = "snafu-derive"
+version = "0.6.10"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1508efa03c362e23817f96cde18abed596a25219a8b2c66e8db33c03543d315b"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 1.0.109",
+]
 
 [[package]]
 name = "spin"
