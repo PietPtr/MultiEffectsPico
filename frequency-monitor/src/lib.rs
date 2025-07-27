@@ -50,8 +50,8 @@ impl FrequencyMonitor {
     }
 
     // TODO: a u32 as time domain signal, shouldn't there be negative values..? check incoming ADC data
-    pub fn recompute(&mut self, time_domain_signal: [u32; Self::FFT_SIZE]) {
-        // TODO: cheat at the u32 -> f32 conversion and do it with bit magic?
+    pub fn recompute(&mut self, time_domain_signal: [i32; Self::FFT_SIZE]) {
+        // TODO: cheat at the i32 -> f32 conversion and do it with bit magic?
         // https://www.h-schmidt.net/FloatConverter/IEEE754.html
 
         self.frequency_domain.copy_from_slice(

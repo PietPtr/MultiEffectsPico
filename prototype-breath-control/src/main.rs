@@ -8,67 +8,35 @@ pub static BOOT2_FIRMWARE: [u8; 256] = rp2040_boot2::BOOT_LOADER_W25Q080;
 
 use bmp280_rs::MeasurementStandbyTimeMillis;
 use common::consts::*;
-use core::cell::RefCell;
-use core::fmt::Write as _;
-use core::sync::atomic::AtomicI32;
 use core::sync::atomic::AtomicU32;
 use core::sync::atomic::Ordering;
 use core::u32;
-use cortex_m::asm;
-use cortex_m::interrupt::Mutex;
 use cortex_m::singleton;
 use defmt::info;
 use defmt_rtt as _;
-use embedded_graphics::mono_font::ascii::FONT_6X10;
-use embedded_graphics::mono_font::MonoTextStyleBuilder;
-use embedded_graphics::pixelcolor::BinaryColor;
-use embedded_graphics::prelude::*;
-use embedded_graphics::text::Baseline;
-use embedded_graphics::text::Text;
-use embedded_hal::adc::OneShot;
-use embedded_hal::blocking::i2c::Write;
-use embedded_hal::digital::v2::InputPin;
 use fixed::types::{I1F15, U8F8};
-use fugit::Duration;
 use fugit::HertzU32;
 use fugit::RateExtU32;
-use heapless::Arc;
-use heapless::String;
-use heapless::Vec;
-use mcp23017::MCP23017;
 use panic_probe as _;
-use rotary_encoder_embedded::Direction;
-use rotary_encoder_embedded::RotaryEncoder;
-use rp2040_hal::dma;
-use rp2040_hal::dma::double_buffer::Transfer;
-use rp2040_hal::dma::single_buffer;
-use rp2040_hal::gpio::FunctionSioInput;
-use rp2040_hal::gpio::PullUp;
-use rp2040_hal::pac::NVIC;
-use rp2040_hal::timer::Alarm;
-use rp2040_hal::timer::Alarm0;
-use rp2040_hal::Timer;
+use rp2040_hal::dma::DMAExt;
+use rp2040_hal::pac;
+use rp2040_hal::pio::PIOExt;
 use rp2040_hal::{
-    adc::AdcPin,
     clocks::{Clock, ClockSource, ClocksManager, InitError},
-    dma::{double_buffer, DMAExt},
-    gpio::{self, DynFunction, DynPinId, Pin, PullDown},
+    dma::double_buffer,
+    gpio::{self},
     multicore::{Multicore, Stack},
-    pac::interrupt,
-    pac::{self},
-    pio::{PIOExt, PinDir},
+    pio::PinDir,
     pll::{common_configs::PLL_USB_48MHZ, setup_pll_blocking},
     sio::Sio,
     watchdog::Watchdog,
     xosc::setup_xosc_blocking,
-    Adc, I2C,
+    I2C,
 };
-
 use rytmos_synth::effect::{
     amplify::{Amplify, AmplifySettings},
     Effect,
 };
-use sh1106::mode::GraphicsMode;
 
 static mut CORE1_STACK: Stack<4096> = Stack::new();
 

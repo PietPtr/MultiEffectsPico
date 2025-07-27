@@ -37,3 +37,6 @@ embedded-graphics = "0.8.1"
 rotary-encoder-embedded = "0.5.0"
 frequency-monitor = { version = "0.1.0", path = "../../frequency-monitor" }
 critical-section = "1.2.0"
+audioscope = { version = "0.1.0", path = "../../audioscope" }
+strum = { version = "0.27.2", default-features = false }
+strum_macros = "0.27.2"
