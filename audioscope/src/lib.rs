@@ -1,5 +1,7 @@
 #![no_std]
 
+pub mod configurator;
+
 use defmt::info;
 use embedded_graphics::{
     pixelcolor::BinaryColor,

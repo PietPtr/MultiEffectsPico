@@ -65,6 +65,8 @@ dependencies = [
  "rytmos-synth",
  "sh1106",
  "shared-bus",
+ "strum",
+ "strum_macros",
 ]
 
 [[package]]

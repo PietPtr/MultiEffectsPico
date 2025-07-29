@@ -6,11 +6,10 @@
 #[used]
 pub static BOOT2_FIRMWARE: [u8; 256] = rp2040_boot2::BOOT_LOADER_W25Q080;
 
-use audioscope::{AudioScope, AudioScopeSettings, Trigger};
+use audioscope::{AudioScope, Trigger};
 use common::consts::*;
 use common::debouncer::Debouncer;
 use core::fmt::Write as _;
-use core::iter;
 use core::{
     cell::RefCell,
     sync::atomic::{AtomicU32, Ordering},
@@ -19,8 +18,6 @@ use core::{
 use cortex_m::{interrupt::Mutex, singleton};
 use defmt::info;
 use defmt_rtt as _;
-use embedded_graphics::mono_font::iso_8859_13::FONT_5X7;
-use embedded_graphics::mono_font::MonoTextStyle;
 use embedded_graphics::{
     mono_font::{ascii::FONT_6X10, MonoTextStyleBuilder},
     pixelcolor::BinaryColor,
@@ -51,16 +48,13 @@ use rp2040_hal::{
     Adc, Timer, I2C,
 };
 use rytmos_engrave::a;
-use rytmos_synth::synth::sine::{SineSynth, SineSynthSettings};
-use rytmos_synth::synth::Synth;
-use sh1106::mode::GraphicsMode;
-use strum::IntoEnumIterator;
-use strum_macros::EnumIter;
-
 use rytmos_synth::effect::{
     amplify::{Amplify, AmplifySettings},
     Effect,
 };
+use rytmos_synth::synth::sine::{SineSynth, SineSynthSettings};
+use rytmos_synth::synth::Synth;
+use sh1106::mode::GraphicsMode;
 
 static mut CORE1_STACK: Stack<4096> = Stack::new();
 
@@ -355,9 +349,6 @@ fn main() -> ! {
         &mut pac.RESETS,
     );
 
-    // Setup double buffer for FFT visualizer
-    let dma_channels = pac.DMA.split(&mut pac.RESETS);
-
     // Setup the other core
     let sys_freq = clocks.system_clock.freq();
     let mut mc = Multicore::new(&mut pac.PSM, &mut pac.PPB, &mut sio.fifo);
@@ -474,7 +465,8 @@ fn main() -> ! {
     scope.settings.trigger = Trigger::RisingEdge {
         threshold: 0x7000_0000,
     };
-    let mut scope_config = EncoderScopeConfigurator::new(20, scope.settings);
+    let mut scope_config =
+        audioscope::configurator::EncoderScopeConfigurator::new(20, scope.settings);
 
     let mut selected_menu = Menu::Tests;
     let mut pot_values = [0; 3];
@@ -606,102 +598,6 @@ fn main() -> ! {
         }
 
         display.flush().unwrap();
-    }
-}
-
-// TODO: move to audioscope crate
-struct EncoderScopeConfigurator {
-    current_setting: EncoderScopeConfiguratorSetting,
-    setting_iterator: iter::Cycle<EncoderScopeConfiguratorSettingIter>,
-    settings: AudioScopeSettings,
-    initial_draw_setting_countdown: u32,
-    draw_setting_countdown: u32,
-    encoder_offset: i32,
-}
-
-#[derive(Debug, EnumIter)]
-enum EncoderScopeConfiguratorSetting {
-    TriggerLevel,
-    ZoomY,
-    ZoomX,
-}
-
-impl EncoderScopeConfiguratorSetting {
-    fn str(&self) -> &'static str {
-        match self {
-            EncoderScopeConfiguratorSetting::ZoomY => "zoom y",
-            EncoderScopeConfiguratorSetting::ZoomX => "zoom x",
-            EncoderScopeConfiguratorSetting::TriggerLevel => "trigger level",
-        }
-    }
-}
-
-impl EncoderScopeConfigurator {
-    pub fn new(draw_setting_countdown: u32, settings_now: AudioScopeSettings) -> Self {
-        Self {
-            current_setting: EncoderScopeConfiguratorSetting::ZoomY,
-            setting_iterator: EncoderScopeConfiguratorSetting::iter().cycle(),
-            settings: settings_now,
-            initial_draw_setting_countdown: draw_setting_countdown,
-            draw_setting_countdown,
-            encoder_offset: 0,
-        }
-    }
-    pub fn next_setting(&mut self, new_settings: AudioScopeSettings, encoder_offset: i32) {
-        self.settings = new_settings;
-        self.draw_setting_countdown = self.initial_draw_setting_countdown;
-        self.encoder_offset = encoder_offset;
-        self.current_setting = self.setting_iterator.next().unwrap()
-    }
-
-    // TODO: this updating stuff is very buggy
-    pub fn update_current_setting(&mut self, raw_encoder_value: i32) -> AudioScopeSettings {
-        let offset_encoder_value = raw_encoder_value - self.encoder_offset;
-        let mut new_settings = self.settings;
-        match self.current_setting {
-            EncoderScopeConfiguratorSetting::ZoomY => {
-                new_settings.zoom_y = self.settings.zoom_y.saturating_add(offset_encoder_value);
-            }
-            EncoderScopeConfiguratorSetting::ZoomX => {
-                new_settings.zoom_x = self
-                    .settings
-                    .zoom_x
-                    .saturating_add(offset_encoder_value as usize);
-            }
-            EncoderScopeConfiguratorSetting::TriggerLevel => {
-                new_settings.trigger = Trigger::RisingEdge {
-                    threshold: offset_encoder_value << 27,
-                };
-            }
-        }
-
-        new_settings
-    }
-
-    const TEXT_STYLE: MonoTextStyle<'_, BinaryColor> = MonoTextStyleBuilder::new()
-        .font(&FONT_5X7)
-        .text_color(BinaryColor::On)
-        .build();
-
-    pub fn draw<D: DrawTarget>(&mut self, target: &mut D) -> Result<(), D::Error>
-    where
-        D: DrawTarget<Color = BinaryColor>,
-    {
-        if self.draw_setting_countdown == 0 {
-            return Ok(());
-        }
-
-        self.draw_setting_countdown -= 1;
-
-        Text::with_baseline(
-            self.current_setting.str(),
-            Point::zero(),
-            Self::TEXT_STYLE,
-            Baseline::Top,
-        )
-        .draw(target)?;
-
-        Ok(())
     }
 }
 
